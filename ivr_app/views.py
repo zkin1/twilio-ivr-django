@@ -33,17 +33,19 @@ def voice_menu(request):
     si es 1,2,3 hace Dial al área correspondiente, si no, repite menú.
     """
     digits = request.POST.get('Digits', '')
+    twilio_number = request.POST.get('To', '') # El número +1 de Twilio
+    
     response = VoiceResponse()
     
     if digits == '1':
         response.say("Conectando con el departamento de ventas.", language="es-MX")
-        response.dial(settings.PHONE_VENTAS)
+        response.dial(settings.PHONE_VENTAS, caller_id=twilio_number)
     elif digits == '2':
         response.say("Conectando con el departamento de soporte.", language="es-MX")
-        response.dial(settings.PHONE_SOPORTE)
+        response.dial(settings.PHONE_SOPORTE, caller_id=twilio_number)
     elif digits == '3':
         response.say("Conectando con administración.", language="es-MX")
-        response.dial(settings.PHONE_ADMINISTRACION)
+        response.dial(settings.PHONE_ADMINISTRACION, caller_id=twilio_number)
     else:
         response.say("Opción no válida. Por favor, intente de nuevo.", language="es-MX")
         response.redirect('/voice/')
