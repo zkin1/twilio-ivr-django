@@ -134,3 +134,6 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 PHONE_VENTAS = os.getenv("PHONE_VENTAS", "")
 PHONE_SOPORTE = os.getenv("PHONE_SOPORTE", "")
 PHONE_ADMINISTRACION = os.getenv("PHONE_ADMINISTRACION", "")
+
+# Número oficial de Twilio para llamadas salientes (útil para Trial Accounts)
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")

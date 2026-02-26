@@ -9,6 +9,9 @@ def voice_prompt(request):
     Endpoint /voice/ que saluda al usuario, usa Gather para capturar 1 dígito
     y ofrece 3 anexos.
     """
+    print(f"\n[IVR] --- NUEVA LLAMADA ---")
+    print(f"[IVR] De: {request.POST.get('From', 'Desconocido')} | Para: {request.POST.get('To', 'Desconocido')}")
+
     response = VoiceResponse()
     
     # Configure gather to capture 1 digit and send it to /voice/menu/
@@ -22,6 +25,8 @@ def voice_prompt(request):
     )
     
     response.append(gather)
+    # Si el usuario no ingresa nada, repite el menú
+    response.say("No hemos recibido su respuesta.", language="es-MX")
     response.redirect('/voice/')
 
     return HttpResponse(str(response), content_type='text/xml')
@@ -33,21 +38,77 @@ def voice_menu(request):
     si es 1,2,3 hace Dial al área correspondiente, si no, repite menú.
     """
     digits = request.POST.get('Digits', '')
-    twilio_number = request.POST.get('To', '') # El número +1 de Twilio
+    twilio_number = request.POST.get('To', '') 
     
+    # En Trial Accounts de Twilio, el Caller ID debe ser tu número Twilio verificado
+    # Si usamos 'twilio dev-phone' desde el navegador, dev-phone pasa IDs inválidos como 'client:...'
+    # Por eso usamos TWILIO_PHONE_NUMBER como fallback oficial.
+    caller_id = getattr(settings, 'TWILIO_PHONE_NUMBER', twilio_number)
+    
+    # Limpieza básica: un caller ID válido en Twilio (fuera de SIP/Client) empieza con '+'
+    if not caller_id.startswith('+'):
+        # Si no es válido, mejor omitirlo y que Twilio intente usar el default.
+        caller_id = '' 
+        
+    print(f"[IVR] Opción marcada por el usuario: '{digits}'")
+    print(f"[IVR] Caller ID configurado para la redirección: '{caller_id}'")
+
     response = VoiceResponse()
     
-    if digits == '1':
-        response.say("Conectando con el departamento de ventas.", language="es-MX")
-        response.dial(settings.PHONE_VENTAS, caller_id=twilio_number)
-    elif digits == '2':
-        response.say("Conectando con el departamento de soporte.", language="es-MX")
-        response.dial(settings.PHONE_SOPORTE, caller_id=twilio_number)
-    elif digits == '3':
-        response.say("Conectando con administración.", language="es-MX")
-        response.dial(settings.PHONE_ADMINISTRACION, caller_id=twilio_number)
+    destinos = {
+        '1': ("ventas", getattr(settings, 'PHONE_VENTAS', '')),
+        '2': ("soporte", getattr(settings, 'PHONE_SOPORTE', '')),
+        '3': ("administración", getattr(settings, 'PHONE_ADMINISTRACION', '')),
+    }
+
+    if digits in destinos:
+        departamento, telefono_destino = destinos[digits]
+        
+        if not telefono_destino:
+            print(f"[IVR] [ERROR] El número para {departamento} no está configurado en .env")
+            response.say("Lo sentimos, este departamento no está disponible por el momento.", language="es-MX")
+            response.redirect('/voice/')
+        else:
+            print(f"[IVR] Conectando con {departamento} al número: {telefono_destino}...")
+            response.say(f"Conectando con el departamento de {departamento}.", language="es-MX")
+            
+            # El action URL permite saber SI LA LLAMADA FALLA durante el Dial.
+            # Recordar: Las trial accounts solo pueden llamar a números VERIFICADOS.
+            if caller_id:
+                response.dial(telefono_destino, caller_id=caller_id, action="/voice/status/", method="POST")
+            else:
+                response.dial(telefono_destino, action="/voice/status/", method="POST")
     else:
+        print(f"[IVR] [ADVERTENCIA] Opción inválida ingresada: '{digits}'")
         response.say("Opción no válida. Por favor, intente de nuevo.", language="es-MX")
         response.redirect('/voice/')
         
+    return HttpResponse(str(response), content_type='text/xml')
+
+@csrf_exempt
+def voice_status(request):
+    """
+    Endpoint /voice/status/ para depurar fallos de redirección (<Dial>).
+    Twilio invoca esta URL al terminar la llamada, o cuando falla.
+    """
+    call_status = request.POST.get('DialCallStatus', 'unknown')
+    print(f"[IVR] Estado final de la redirección (DialCallStatus): {call_status.upper()}")
+    
+    response = VoiceResponse()
+    
+    if call_status == 'failed':
+        print("[IVR] [ERROR] La llamada falló. Causas comunes: Caller ID inválido o número destino no verificado en Trial Account.")
+        response.say(
+            "La llamada no pudo ser completada. "
+            "Si está usando una cuenta de prueba, verifique que el número de destino esté autorizado.", 
+            language="es-MX"
+        )
+    elif call_status in ['no-answer', 'busy']:
+        print(f"[IVR] Número ocupado o sin respuesta.")
+        response.say("El departamento no responde en este momento. Intente más tarde.", language="es-MX")
+    elif call_status == 'completed':
+        print(f"[IVR] Llamada completada exitosamente.")
+        response.say("Gracias por comunicarse con nosotros.", language="es-MX")
+        
+    response.hangup()
     return HttpResponse(str(response), content_type='text/xml')
