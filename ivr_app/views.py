@@ -55,8 +55,8 @@ def voice_menu(request):
     response = VoiceResponse()
     
     destinos = {
-        '1': ("ventas", getattr(settings, 'PHONE_VENTAS', '')),
-        '2': ("soporte", getattr(settings, 'PHONE_SOPORTE', '')),
+        '1': ("new planet", getattr(settings, 'PHONE_VENTAS', '')),
+        '2': ("top planet", getattr(settings, 'PHONE_SOPORTE', '')),
         '3': ("administración", getattr(settings, 'PHONE_ADMINISTRACION', '')),
     }
 
@@ -73,10 +73,12 @@ def voice_menu(request):
             
             # El action URL permite saber SI LA LLAMADA FALLA durante el Dial.
             # Recordar: Las trial accounts solo pueden llamar a números VERIFICADOS.
+            # Añadimos el parámetro dest para que /voice/status/ sepa a qué departamento se llamó
+            action_url = f"/voice/status/?dest={departamento}"
             if caller_id:
-                response.dial(telefono_destino, caller_id=caller_id, action="/voice/status/", method="POST")
+                response.dial(telefono_destino, caller_id=caller_id, action=action_url, method="POST")
             else:
-                response.dial(telefono_destino, action="/voice/status/", method="POST")
+                response.dial(telefono_destino, action=action_url, method="POST")
     else:
         print(f"[IVR] [ADVERTENCIA] Opción inválida ingresada: '{digits}'")
         response.say("Opción no válida. Por favor, intente de nuevo.", language="es-MX")
@@ -104,10 +106,11 @@ def voice_auto_first(request):
         return HttpResponse(str(response), content_type='text/xml')
 
     response.say("Le conectaremos ahora con el primer departamento.", language="es-MX")
+    action_url = "/voice/status/?dest=ventas"
     if caller_id and caller_id.startswith('+'):
-        response.dial(telefono_destino, caller_id=caller_id, action="/voice/status/", method="POST")
+        response.dial(telefono_destino, caller_id=caller_id, action=action_url, method="POST")
     else:
-        response.dial(telefono_destino, action="/voice/status/", method="POST")
+        response.dial(telefono_destino, action=action_url, method="POST")
 
     return HttpResponse(str(response), content_type='text/xml')
 
@@ -122,6 +125,8 @@ def voice_status(request):
     
     response = VoiceResponse()
     
+    dest = request.GET.get('dest', '')
+
     if call_status == 'failed':
         print("[IVR] [ERROR] La llamada falló. Causas comunes: Caller ID inválido o número destino no verificado en Trial Account.")
         response.say(
@@ -135,6 +140,10 @@ def voice_status(request):
     elif call_status == 'completed':
         print(f"[IVR] Llamada completada exitosamente.")
         response.say("Gracias por comunicarse con nosotros.", language="es-MX")
+        # Si el destino fue 'ventas' o 'soporte' (top planet o new planet), reproducir mensaje final antes de colgar
+        if dest in ['ventas', 'soporte']:
+            # Mensaje solicitado por el usuario
+            response.say("x (puede ser top planet o new planet) termino la llamada", language="es-MX")
         
     response.hangup()
     return HttpResponse(str(response), content_type='text/xml')
