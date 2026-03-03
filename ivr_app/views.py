@@ -17,8 +17,8 @@ def voice_prompt(request):
     # Configure gather to capture 1 digit and send it to /voice/menu/
     gather = Gather(num_digits=1, action='/voice/menu/', method='POST')
     gather.say(
-        "Bienvenido a la central de niu planet. "
-        "Si desea comunicarse con ene planet, presione 1. "
+        "Bienvenido a la central de niu planet o new planet o neei planet. "
+        "Si desea comunicarse con ene planet o n planet, presione 1. "
         "Si desea comunicarse con top planet, presione 2. ",
         language="es-MX"
     )
