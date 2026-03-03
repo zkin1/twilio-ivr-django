@@ -15,7 +15,7 @@ def voice_prompt(request):
     response = VoiceResponse()
     
     # Configure gather to capture 1 digit and send it to /voice/menu/
-    gather = Gather(num_digits=1, action='/voice/menu/', method='POST')
+    gather = Gather(num_digits=1, action=request.build_absolute_uri('/voice/menu/'), method='POST')
     gather.say(
         "Bienvenido a la central de new planet. "
         "Si desea comunicarse con n planet, presione 1. "
@@ -26,7 +26,7 @@ def voice_prompt(request):
     response.append(gather)
     # Si el usuario no ingresa nada, redirigimos automáticamente al primer número (opción 1)
     response.say("No hemos recibido su respuesta. Conectando con el primer departamento.", language="es-MX")
-    response.redirect('/voice/auto_first/')
+    response.redirect(request.build_absolute_uri('/voice/auto_first/'))
 
     return HttpResponse(str(response), content_type='text/xml')
 
@@ -74,7 +74,7 @@ def voice_menu(request):
             # El action URL permite saber SI LA LLAMADA FALLA durante el Dial.
             # Recordar: Las trial accounts solo pueden llamar a números VERIFICADOS.
             # Añadimos el parámetro dest para que /voice/status/ sepa a qué departamento se llamó
-            action_url = f"/voice/status/?dest={departamento}"
+            action_url = request.build_absolute_uri(f"/voice/status/?dest={departamento}")
             if caller_id:
                 response.dial(telefono_destino, caller_id=caller_id, action=action_url, method="POST")
             else:
@@ -106,7 +106,7 @@ def voice_auto_first(request):
         return HttpResponse(str(response), content_type='text/xml')
 
     response.say("Le conectaremos ahora con el primer departamento.", language="es-MX")
-    action_url = "/voice/status/?dest=ventas"
+    action_url = request.build_absolute_uri("/voice/status/?dest=ventas")
     if caller_id and caller_id.startswith('+'):
         response.dial(telefono_destino, caller_id=caller_id, action=action_url, method="POST")
     else:
