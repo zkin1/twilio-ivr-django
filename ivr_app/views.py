@@ -17,17 +17,16 @@ def voice_prompt(request):
     # Configure gather to capture 1 digit and send it to /voice/menu/
     gather = Gather(num_digits=1, action='/voice/menu/', method='POST')
     gather.say(
-        "Bienvenido a la central telefónica. "
-        "Si desea comunicarse con ventas, marque 1. "
-        "Si desea comunicarse con soporte, marque 2. "
-        "Si desea comunicarse con administración, marque 3.",
+        "Bienvenido a la central de niu planet. "
+        "Si desea comunicarse con ene planet, presione 1. "
+        "Si desea comunicarse con top planet, presione 2. ",
         language="es-MX"
     )
     
     response.append(gather)
-    # Si el usuario no ingresa nada, repite el menú
-    response.say("No hemos recibido su respuesta.", language="es-MX")
-    response.redirect('/voice/')
+    # Si el usuario no ingresa nada, redirigimos automáticamente al primer número (opción 1)
+    response.say("No hemos recibido su respuesta. Conectando con el primer departamento.", language="es-MX")
+    response.redirect('/voice/auto_first/')
 
     return HttpResponse(str(response), content_type='text/xml')
 
@@ -83,6 +82,33 @@ def voice_menu(request):
         response.say("Opción no válida. Por favor, intente de nuevo.", language="es-MX")
         response.redirect('/voice/')
         
+    return HttpResponse(str(response), content_type='text/xml')
+
+
+@csrf_exempt
+def voice_auto_first(request):
+    """
+    Endpoint /voice/auto_first/ que conecta automáticamente con la opción '1'
+    cuando el usuario no presiona ninguna tecla en el menú inicial.
+    """
+    print("[IVR] Usuario no ingresó dígito: redirigiendo automáticamente a la opción 1")
+
+    response = VoiceResponse()
+
+    telefono_destino = getattr(settings, 'PHONE_VENTAS', '')
+    caller_id = getattr(settings, 'TWILIO_PHONE_NUMBER', '')
+    if not telefono_destino:
+        print("[IVR] [ERROR] PHONE_VENTAS no configurado.")
+        response.say("Lo sentimos, no es posible conectar con el departamento en este momento.", language="es-MX")
+        response.redirect('/voice/')
+        return HttpResponse(str(response), content_type='text/xml')
+
+    response.say("Le conectaremos ahora con el primer departamento.", language="es-MX")
+    if caller_id and caller_id.startswith('+'):
+        response.dial(telefono_destino, caller_id=caller_id, action="/voice/status/", method="POST")
+    else:
+        response.dial(telefono_destino, action="/voice/status/", method="POST")
+
     return HttpResponse(str(response), content_type='text/xml')
 
 @csrf_exempt
